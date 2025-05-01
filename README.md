@@ -4,6 +4,9 @@
 
 ---
 
+<img src="docs/esp32s3mini.png" width="200" height="200" />
+<img src="docs/hc-12.png" width="200" height="200" />
+
 ### 🧠 Components Used
 
 - **ESP32S3 Mini**
