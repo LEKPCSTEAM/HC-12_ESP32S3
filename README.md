@@ -1,6 +1,6 @@
 ## 📡 ESP32S3 + HC-12 433MHz Communication System
 
-ระบบนี้ออกแบบมาเพื่อให้ **ESP32S3** สามารถรับข้อมูลแบบ **ไร้สายผ่านโมดูล HC-12 (433 MHz)** และสั่งการอุปกรณ์เช่น LED และ buzzer โดยใช้โปรโตคอลที่กำหนดเอง และสื่อสารผ่าน serial
+This system is designed to allow an **ESP32S3** to receive data **wirelessly via an HC-12 (433 MHz) module** and control devices such as an LED and a buzzer using a custom-defined protocol over serial communication.
 
 ---
 
@@ -19,11 +19,11 @@
 
 ## ⚙️ System Overview
 
-| ฝั่ง Python (`PacketSender433Mhz`) | ฝั่ง ESP32 (`receiveData`, `handlePacket`) |
+| Python Side (`PacketSender433Mhz`) | ESP32 Side (`receiveData`, `handlePacket`) |
 | --- | --- |
-| สร้าง packet | รับ packet ผ่าน UART จาก HC-12 |
-| ใส่ Header / Type / Payload / Checksum | ตรวจสอบความถูกต้อง (header, checksum, end byte) |
-| คิวข้อมูล + delay ส่ง | สั่งงาน LED / buzzer จากข้อมูลที่รับ |
+| Builds packets | Receives packets via UART from HC-12 |
+| Adds Header / Type / Payload / Checksum | Validates packet (header, checksum, end byte) |
+| Queues data + sends with delay | Controls LED / buzzer based on received data |
 
 ---
 
@@ -33,28 +33,30 @@
 
 ```
 [HEADER][TYPE][LENGTH][ID (8 bytes)][PAYLOAD][CHECKSUM][END]
+
 ```
 
 | Field | Size | Description |
 | --- | --- | --- |
 | `HEADER` | 1 byte | Always `0xAA` |
-| `TYPE` | 1 byte | Message type (ดูด้านล่าง) |
+| `TYPE` | 1 byte | Message type (see below) |
 | `LENGTH` | 1 byte | Total length of `[ID + PAYLOAD]` |
-| `ID` | 8 bytes | Device ID (เช่น `"DEVICE01"`) |
-| `PAYLOAD` | N bytes | ข้อมูลตามประเภท เช่น `"red"` |
-| `CHECKSUM` | 1 byte | XOR ของ header, type, length, sum(payload) |
+| `ID` | 8 bytes | Device ID (e.g. `"DEVICE01"`) |
+| `PAYLOAD` | N bytes | Type-specific data (e.g. `"red"`) |
+| `CHECKSUM` | 1 byte | XOR of header, type, length, and sum(payload) |
 | `END` | 1 byte | Always `0x55` |
 
 ---
 
 ### 📥 Example Packet (Python → ESP32)
 
-ส่งคำสั่ง `"red"` ไปยังอุปกรณ์ `DEVICE01`:
+Sending the command `"red"` to device `DEVICE01`:
 
 ```python
 MessageType = COLOR (0x01)
-ID = "DEVICE01"
-Payload = "red"
+ID ="DEVICE01"
+Payload ="red"
+
 ```
 
 - Header: `0xAA`
@@ -62,7 +64,7 @@ Payload = "red"
 - Length: `8 (ID) + 3 (payload) = 11`
 - ID: `44 45 56 49 43 45 30 31` (`DEVICE01`)
 - Payload: `72 65 64` (`red`)
-- Checksum: XOR ของ header, type, length และ sum(payload)
+- Checksum: XOR of header, type, length, and sum(payload)
 - End: `0x55`
 
 ---
@@ -71,29 +73,29 @@ Payload = "red"
 
 | Name | Value | Description |
 | --- | --- | --- |
-| `COLOR` | `0x01` | เปลี่ยนสีของ LED |
-| `NUMBER` | `0x02` | ส่งค่าตัวเลข |
-| `STATUS_MSG` | `0x03` | ส่งสถานะ |
-| `TEXT` | `0x04` | ข้อความทั่วไป |
+| `COLOR` | `0x01` | Change LED color |
+| `NUMBER` | `0x02` | Send a numeric value |
+| `STATUS_MSG` | `0x03` | Send status information |
+| `TEXT` | `0x04` | General text message |
 
-> ⚠️ ใน ESP32 ใช้ชื่อ STATUS_MSG แทน STATUS เพื่อเลี่ยงชนกับระบบ
+> ⚠️ On the ESP32 side, STATUS_MSG is used instead of STATUS to avoid naming conflicts with the system.
 > 
 
 ---
 
 ## 💡 Example Behavior (ESP32)
 
-หาก ESP32 ได้รับ packet ที่:
+If the ESP32 receives a packet with:
 
 - `ID == DEVICE01`
 - `TYPE == COLOR`
 - `PAYLOAD == "blue"`
 
-ESP32 จะ:
+The ESP32 will:
 
-- เปิด LED เป็นสีน้ำเงิน
-- เล่นเพลง Jingle Bells สั้น ๆ
-- ปิด LED หลังเล่นจบ
+- Turn the LED blue
+- Play a short **Jingle Bells** melody
+- Turn off the LED after playback finishes
 
 ---
 
@@ -101,27 +103,28 @@ ESP32 จะ:
 
 ```bash
 python main.py
+
 ```
 
-Python script จะ:
+The Python script will:
 
-- สร้าง packet
-- เข้าคิว
-- ส่งออกผ่าน Serial (`/dev/tty.usbserial-1230`)
-- รองรับ delay และการจัดลำดับอัตโนมัติ
+- Build packets
+- Queue packets
+- Send data over Serial (`/dev/tty.usbserial-1230`)
+- Support delays and automatic ordering
 
 ---
 
-## 🚀 ใช้งาน
+## 🚀 Usage
 
-### เชื่อมต่อสาย:
+### Wiring:
 
 - ESP32 TX2 (GPIO14) → HC-12 RX
 - ESP32 RX2 (GPIO13) → HC-12 TX
 - 5V, GND
 
-### ขั้นตอน:
+### Steps:
 
-1. Flash โค้ดไปยัง ESP32
-2. เปิด Python script (`main.py`)
-3. ตรวจสอบ LED และ serial monitor
+1. Flash the code to the ESP32
+2. Run the Python script (`main.py`)
+3. Monitor the LED and serial output
